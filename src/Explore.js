@@ -8,6 +8,7 @@ export default class MediaGallery extends Component {
     // set initial state of elements
     constructor(props) {
         super(props);
+
         this.state = {
             items: [],
             hasMoreItems: true,
@@ -16,10 +17,11 @@ export default class MediaGallery extends Component {
 
     componentDidMount() {
     }
-
     loadMore = (page) => {
-        var _this = this;
-        this.serverRequest =
+        let _this = this;
+        const images=[];
+        const reqsize=[];
+
             axios({
                 method:'get',
                 url:'https://api.flickr.com/services/rest/?method=flickr.interestingness.getList&api_key=508e5061950bdf3264f3b5a171ff7292&format=json&nojsoncallback=1&per_page=20&page=0',
@@ -28,11 +30,37 @@ export default class MediaGallery extends Component {
                 },
                 responseType:'json'
             })
-                .then(function (result) {
-                    _this.setState({
-                        items: [..._this.state.items,...result.data.photos.photo],
-                    })
+                .then( (result) => {
+                    let items=result.data.photos.photo;
+                    return Promise.all(items.map((item, index) => {
+                        return axios({
+                            method:'get',
+                            url:'https://api.flickr.com/services/rest/?method=flickr.photos.getSizes&api_key=286f1cd4e6363ab5fa482e031e5b0465&photo_id=30244261387&format=json&nojsoncallback=1',
+                            params: {
+                                photo_id: item.id,
+                                api_key:process.env.REACT_APP_API_KEY
+                            },
+                            responseType:'json'
+                        })
+                            .then((response) => {
+                                images.push({
+                                    "src": _this.imageURL(item),
+                                    "thumbnail": _this.imageURL(item),
+                                    thumbnailWidth: response.data.sizes.size.width,
+                                    thumbnailHeight: response.data.sizes.size.height,
+                                    caption: item.title
+                                });
+                                return item
+                            });
+                    }));
+
+                }).then (()=>{
+                _this.setState({
+                    items: [..._this.state.items,...images],
                 })
+            }).catch((error) => {
+                console.log(error);
+            })
     };
 
     // assemble image URL
@@ -68,7 +96,7 @@ export default class MediaGallery extends Component {
         const loader = <div className="loader">Loading ...</div>;
 
         const images =
-            this.myGallery(this.state.items).map((i) => {
+            this.state.items.map((i) => {
                 i.customOverlay = (
                     <div style={captionStyle}>
                         <div>{i.caption}</div>

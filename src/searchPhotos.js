@@ -3,11 +3,12 @@ import axios from 'axios'
 import Gallery from 'react-grid-gallery';
 import InfiniteScroll from 'react-infinite-scroller';
 
-export default class MediaGallery extends Component {
+export default class searchPhotos extends Component {
 
     // set initial state of elements
     constructor(props) {
         super(props);
+
         this.state = {
             items: [],
             hasMoreItems: true,
@@ -16,27 +17,52 @@ export default class MediaGallery extends Component {
 
     componentDidMount() {
     }
-
     loadMore = (page) => {
-        var _this = this;
+        let _this = this;
+        const images=[];
+        const reqsize=[];
 
-            this.serverRequest =
-                axios({
-                    method:'get',
-                    url:'https://api.flickr.com/services/rest/?method=flickr.photos.search&api_key=19539947c0d64209e41f247168624053&tags=game&format=json&nojsoncallback=1',
-                    params: {
-                        tags: this.props.match.params.tag,
-                        api_key:process.env.REACT_APP_API_KEY
-                    },
-                    responseType:'json'
-                })
-                    .then(function (result) {
-                        _this.setState({
-                            items: [..._this.state.items,...result.data.photos.photo],
-                        })
+        axios({
+            method:'get',
+            url:'https://api.flickr.com/services/rest/?method=flickr.photos.search&api_key=7f3bf9e919ffdb73d9c1bc1b5b641411&per_page=20&tags=cat&page=1&format=json&nojsoncallback=1',
+            params: {
+                page: page,
+                tags: this.props.match.params.tag,
+                api_key:process.env.REACT_APP_API_KEY
+            },
+            responseType:'json'
+        })
+            .then( (result) => {
+                let items=result.data.photos.photo;
+                return Promise.all(items.map((item, index) => {
+                    return axios({
+                        method:'get',
+                        url:'https://api.flickr.com/services/rest/?method=flickr.photos.getSizes&api_key=286f1cd4e6363ab5fa482e031e5b0465&photo_id=30244261387&format=json&nojsoncallback=1',
+                        params: {
+                            photo_id: item.id,
+                            api_key:process.env.REACT_APP_API_KEY
+                        },
+                        responseType:'json'
                     })
+                        .then((response) => {
+                            images.push({
+                                "src": _this.imageURL(item),
+                                "thumbnail": _this.imageURL(item),
+                                thumbnailWidth: response.data.sizes.size.width,
+                                thumbnailHeight: response.data.sizes.size.height,
+                                caption: item.title
+                            });
+                            return item
+                        });
+                }));
 
-
+            }).then (()=>{
+            _this.setState({
+                items: [..._this.state.items,...images],
+            })
+        }).catch((error) => {
+            console.log(error);
+        })
     };
 
     // assemble image URL
@@ -44,26 +70,7 @@ export default class MediaGallery extends Component {
         return 'http://farm' + item.farm + '.staticflickr.com/' + item.server + '/' + item.id + '_' + item.secret + '.jpg'
     }
 
-    myGallery(items) {
-        var MyGallery = {
-            Images: []
-        };
 
-        for (var i in items) {
-
-            var item = items[i];
-
-            MyGallery.Images.push({
-                "src": this.imageURL(item),
-                "thumbnail": this.imageURL(item),
-                thumbnailWidth: 320,
-                thumbnailHeight: 212,
-                caption: item.title
-            });
-        }
-
-        return MyGallery.Images;
-    }
 
 
     // render the app
@@ -72,13 +79,14 @@ export default class MediaGallery extends Component {
         const loader = <div className="loader">Loading ...</div>;
 
         const images =
-            this.myGallery(this.state.items).map((i) => {
+            this.state.items.map((i) => {
                 i.customOverlay = (
                     <div style={captionStyle}>
                         <div>{i.caption}</div>
                     </div>);
                 return i;
             });
+
         return (
             <div>
                 <p id="title">
